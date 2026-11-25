@@ -70,6 +70,25 @@ cp .env.example .env
 
 Edit `.env` with your configuration values (see `.env.example` for placeholders).
 
+**Database Configuration (`.env`):**
+- Local SQLite (default): `DATABASE_URL=sqlite:///./smartplant.db`
+- PostgreSQL: `DATABASE_URL=postgresql://user:password@localhost:5432/smartplant`
+
+### Database Setup
+
+```bash
+cd backend
+
+# Apply database migrations
+alembic upgrade head
+
+# Database is now ready for use
+```
+
+**Database files:**
+- Local SQLite: `backend/smartplant.db` (auto-created)
+- Alembic migrations: `backend/migrations/versions/`
+
 ### Running the Backend
 
 ```bash
@@ -80,7 +99,9 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 The API will be available at `http://localhost:8000`.
 
-Health check endpoint: `http://localhost:8000/health`
+**API Endpoints:**
+- Health check: `GET http://localhost:8000/health`
+- API documentation: `http://localhost:8000/docs`
 
 ## Frontend Setup
 
@@ -132,11 +153,19 @@ Each component has an `.env.example` template that documents required configurat
 
 ✅ **Phase 1**: Project structure created  
 ✅ **Phase 2**: Foundation dependencies and configuration prepared  
-⏳ **Phase 3**: Core functionality (placeholder)  
-⏳ **Phase 4**: Testing and optimization (placeholder)  
-⏳ **Phase 5**: Deployment (placeholder)  
+✅ **Phase 3**: Database schema, models, and migrations implemented
+⏳ **Phase 4**: REST API endpoints (placeholder)  
+⏳ **Phase 5**: Testing and optimization (placeholder)  
+⏳ **Phase 6**: Deployment (placeholder)  
 
-**Note**: Core functionality (database schema, API business logic, sensor simulation, dashboard features, authentication workflows) has not yet been implemented. This is a foundation setup only.
+**Phase 3 - Database Implementation Complete:**
+- ✅ SQLAlchemy ORM models (Plant, Device, SensorReading, WateringEvent, Alert)
+- ✅ Alembic database migrations with auto-generate
+- ✅ Foreign key relationships and referential integrity
+- ✅ Automatic timestamp management
+- ✅ Comprehensive data validation and constraints
+- ✅ SQLite (local) and PostgreSQL (Supabase) support
+- ✅ 21 passing automated database tests
 
 ## Docker Support (Foundation)
 
@@ -148,16 +177,23 @@ Pytest is configured for the backend. Run tests with:
 
 ```bash
 cd backend
-pytest
+
+# Run all tests
+pytest tests/
+
+# Run database tests only
+pytest tests/test_models.py -v
+
+# Run with verbose output
+pytest -v
 ```
 
-(Test suite is not yet implemented; this is configuration only.)
+(Test suite includes database schema validation and model relationship tests.)
 
-## Support and Documentation
+## Documentation
 
-- Architecture decisions and design documentation: See `docs/`
-- Deployment guides: See GitHub Actions workflows in `.github/workflows/`
-- Component-specific documentation: See component README files (forthcoming)
+- **Architecture**: See `docs/ARCHITECTURE.md`
+- **Database Schema**: See `docs/DATABASE.md` for complete schema documentation, relationships, and migration commands
 
 ## License
 
@@ -165,9 +201,8 @@ pytest
 
 ## Next Steps
 
-The system is ready for Phase 3 implementation:
-1. Database schema design and migrations
-2. API endpoint implementation
-3. Sensor simulator logic
-4. Frontend dashboard and components
-5. Authentication integration
+The system is ready for Phase 4 implementation:
+1. REST API endpoint implementation
+2. Sensor simulator logic
+3. Frontend dashboard and components
+4. Authentication integration

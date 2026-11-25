@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 
     # Database configuration
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/smartplant"
+    # Defaults to SQLite for local development; set DATABASE_URL to use PostgreSQL
+    DATABASE_URL: str = "sqlite:///./smartplant.db"
 
     # API configuration
     API_PREFIX: str = "/api/v1"

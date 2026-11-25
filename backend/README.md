@@ -57,14 +57,24 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 backend/
 ├── app/
 │   ├── __init__.py
-│   └── main.py          # FastAPI application entry point
+│   ├── main.py          # FastAPI application entry point
+│   ├── database.py      # Database configuration and session management
+│   └── models.py        # SQLAlchemy ORM models
+├── migrations/
+│   ├── versions/        # Migration scripts
+│   ├── env.py           # Alembic migration environment
+│   └── alembic.ini      # Alembic configuration
 ├── tests/
 │   ├── __init__.py
-│   └── test_health.py   # Health check tests
+│   ├── conftest.py      # Pytest fixtures
+│   ├── test_health.py   # Health check tests
+│   └── test_models.py   # Database model tests
 ├── config.py            # Pydantic settings
 ├── requirements.txt     # Python dependencies
+├── requirements-lock.txt # Locked dependencies
 ├── .env.example         # Configuration template
-└── pytest.ini           # Pytest configuration
+├── pytest.ini           # Pytest configuration
+└── smartplant.db        # SQLite database (auto-created)
 ```
 
 ## Testing
@@ -72,14 +82,21 @@ backend/
 Run the test suite:
 
 ```bash
-pytest
-```
+# Run all tests
+pytest tests/
 
-Run with coverage:
+# Run database tests
+pytest tests/test_models.py -v
 
-```bash
+# Run with coverage
 pytest --cov=app tests/
 ```
+
+**Test Coverage:**
+- 2 health check tests
+- 19 database model tests (21 total)
+- Tests verify CRUD operations, relationships, constraints, and cascading deletes
+- Uses in-memory SQLite database for isolation
 
 ## API Documentation
 
@@ -87,15 +104,40 @@ Once the application is running, visit:
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 
-## Configuration
+## Database
 
-All configuration is managed through environment variables in the `.env` file.
+### Setup
 
-**Key variables:**
-- `BACKEND_URL` / `DATABASE_URL` - Database connection
-- `SUPABASE_URL` / `SUPABASE_KEY` - Supabase credentials
-- `DEBUG` - Enable debug mode
-- `LOG_LEVEL` - Logging verbosity
+The database is automatically configured via environment variables in `.env`.
+
+**Local SQLite (Default):**
+```bash
+DATABASE_URL=sqlite:///./smartplant.db
+```
+
+**PostgreSQL:**
+```bash
+DATABASE_URL=postgresql://user:password@localhost:5432/smartplant
+```
+
+### Initialize Database
+
+```bash
+# Apply migrations to create schema
+alembic upgrade head
+```
+
+### Database Models
+
+5 core entities implemented with relationships:
+
+- **Plant**: Individual plants with care thresholds
+- **Device**: IoT sensors associated with plants
+- **SensorReading**: Historical sensor data (moisture, temperature, humidity)
+- **WateringEvent**: Watering records with trigger reasons
+- **Alert**: System alerts with severity levels
+
+For complete schema documentation, see `docs/DATABASE.md`.
 
 ## Implementation Status
 
@@ -105,11 +147,23 @@ All configuration is managed through environment variables in the `.env` file.
 - Health check endpoint
 - Test framework configured
 
-⏳ **Phase 3**: Core functionality
-- Database schema and migrations
-- API business endpoints
-- Authentication and authorization
-- Sensor data models
+✅ **Phase 3**: Database implementation complete
+- SQLAlchemy ORM models (5 entities)
+- Alembic migrations with auto-generate
+- Foreign key relationships and cascading deletes
+- Automatic timestamp management
+- Comprehensive data validation and constraints
+- 21 passing automated tests
+
+**Models:**
+- Plant: Individual plants with moisture thresholds
+- Device: IoT sensors/devices
+- SensorReading: Historical sensor data
+- WateringEvent: Watering records
+- Alert: System alerts
+
+⏳ **Phase 4**: REST API business endpoints
+⏳ **Phase 5**: Authentication workflows
 
 ## Development
 
