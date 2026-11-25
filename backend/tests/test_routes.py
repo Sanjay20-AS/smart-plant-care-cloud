@@ -45,17 +45,6 @@ def override_dependencies(db_session: Session):
     app.dependency_overrides.clear()
 
 
-# Monkey-patch Plant creation to include user_id automatically in tests
-_original_plant_init = Plant.__init__
-
-def _patched_plant_init(self, **kwargs):
-    # Set user_id to test user if not explicitly provided and not None
-    if 'user_id' not in kwargs:
-        kwargs['user_id'] = TEST_USER_ID
-    _original_plant_init(self, **kwargs)
-
-Plant.__init__ = _patched_plant_init
-
 
 
 # ============================================================================
@@ -448,7 +437,11 @@ class TestAlertEndpoints:
 
     def test_list_alerts(self, db_session: Session):
         """Test listing alerts."""
+        # Create test data
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()  # Flush to get the plant ID without committing
+        
         alert = Alert(
             plant_id=plant.id,
             alert_type="dry",
@@ -456,9 +449,14 @@ class TestAlertEndpoints:
             message="Low moisture",
             status="active",
         )
-        db_session.add_all([plant, alert])
+        db_session.add(alert)
         db_session.commit()
 
+        # Verify data exists in session
+        all_plants = db_session.query(Plant).all()
+        all_alerts = db_session.query(Alert).all()
+        print(f"Before route: plants={len(all_plants)}, plant_id={all_plants[0].id if all_plants else None}, alerts={len(all_alerts)}, alert.plant_id={all_alerts[0].plant_id if all_alerts else None}")
+        
         response = client.get("/api/v1/alerts")
         assert response.status_code == 200
         data = response.json()
@@ -467,6 +465,8 @@ class TestAlertEndpoints:
     def test_get_alert(self, db_session: Session):
         """Test retrieving a specific alert."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()  # Ensure plant.id is generated
         alert = Alert(
             plant_id=plant.id,
             alert_type="dry",
@@ -474,7 +474,7 @@ class TestAlertEndpoints:
             message="Low moisture",
             status="active",
         )
-        db_session.add_all([plant, alert])
+        db_session.add(alert)
         db_session.commit()
 
         response = client.get(f"/api/v1/alerts/{alert.id}")
@@ -485,6 +485,8 @@ class TestAlertEndpoints:
     def test_update_alert_status(self, db_session: Session):
         """Test updating alert status."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()  # Ensure plant.id is generated
         alert = Alert(
             plant_id=plant.id,
             alert_type="dry",
@@ -492,7 +494,7 @@ class TestAlertEndpoints:
             message="Low moisture",
             status="active",
         )
-        db_session.add_all([plant, alert])
+        db_session.add(alert)
         db_session.commit()
 
         response = client.put(

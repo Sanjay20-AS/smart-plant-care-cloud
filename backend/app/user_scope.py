@@ -72,9 +72,7 @@ def get_user_watering_events(db: Session, user_id: str, plant_id: Optional[int] 
 
 def get_user_alerts(db: Session, user_id: str, plant_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[Alert]:
     """Get all alerts for a user's plants."""
-    query = db.query(Alert).join(Plant, isouter=True).filter(
-        (Plant.user_id == user_id) | (Alert.device_id.isnot(None))
-    )
+    query = db.query(Alert).join(Plant).filter(Plant.user_id == user_id)
     if plant_id:
         query = query.filter(Alert.plant_id == plant_id)
     return query.offset(skip).limit(limit).all()
