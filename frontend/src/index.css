@@ -415,3 +415,35 @@ button:disabled {
     transform: translateY(0);
   }
 }
+
+
+/* Loading container */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--primary-light), var(--secondary-light));
+}
+
+/* Logout button styling */
+.logout-btn {
+  margin-left: auto;
+  background-color: var(--color-danger) !important;
+  color: white !important;
+}
+
+.logout-btn:hover {
+  background-color: var(--color-danger) !important;
+  opacity: 0.8;
+}
+
+/* Auth page styles */
+--primary: #4CAF50;
+--primary-dark: #388E3C;
+--primary-light: rgba(76, 175, 80, 0.1);
+--secondary: #2196F3;
+--secondary-light: rgba(33, 150, 243, 0.1);
+--success: #4CAF50;
+--border-color: #E0E0E0;
+--bg-secondary: #F5F5F5;

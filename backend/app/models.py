@@ -34,6 +34,7 @@ class Plant(Base):
     __tablename__ = "plants"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), nullable=True, index=True, comment="Supabase user ID (owner)")
     name = Column(String(255), nullable=False)
     species = Column(String(255), nullable=True, comment="Plant species or type")
     moisture_threshold_min = Column(
@@ -58,6 +59,7 @@ class Plant(Base):
         CheckConstraint("moisture_threshold_max >= 0 AND moisture_threshold_max <= 100"),
         CheckConstraint("moisture_threshold_min <= moisture_threshold_max"),
         Index("idx_plant_active", "is_active"),
+        Index("idx_plant_user_id", "user_id"),
     )
 
 

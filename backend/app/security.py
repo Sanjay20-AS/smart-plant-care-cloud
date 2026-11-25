@@ -1,14 +1,18 @@
 """
 Device-level security and authentication for sensor ingestion.
+User ownership and authorization checks.
 
-This module handles device-level security only. User authentication
-will be integrated in a later phase via Supabase Auth.
+Modules:
+- Device authentication for sensor ingestion
+- User ownership verification for protected resources
+- JWT token verification (see auth.py for detailed JWT handling)
 """
 import secrets
 import hashlib
 from typing import Optional
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.models import Device
+from app.models import Device, Plant
 
 
 # Device API Key length
@@ -57,3 +61,62 @@ def authenticate_device(db: Session, device_id: str, auth_key: Optional[str] = N
     # For now, device_id presence is sufficient
 
     return device
+
+
+# ============================================================================
+# User Ownership Verification
+# ============================================================================
+
+
+def verify_plant_ownership(db: Session, plant_id: int, user_id: str) -> Plant:
+    """
+    Verify that a plant belongs to the authenticated user.
+    
+    Args:
+        db: Database session
+        plant_id: ID of the plant to verify
+        user_id: Authenticated user's ID
+    
+    Returns:
+        Plant object if owned by user
+    
+    Raises:
+        HTTPException (403) if plant is not owned by user or not found
+        HTTPException (404) if plant doesn't exist
+    """
+    plant = db.query(Plant).filter(Plant.id == plant_id).first()
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+    
+    # Allow access if user_id is None (legacy/unowned) or matches
+    if plant.user_id is not None and plant.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this plant")
+    
+    return plant
+
+
+def verify_device_ownership(db: Session, device_id: int, user_id: str) -> Device:
+    """
+    Verify that a device (and its plant) belongs to the authenticated user.
+    
+    Args:
+        db: Database session
+        device_id: ID of the device to verify
+        user_id: Authenticated user's ID
+    
+    Returns:
+        Device object if owned by user
+    
+    Raises:
+        HTTPException (403) if device is not owned by user or not found
+        HTTPException (404) if device doesn't exist
+    """
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    # Check if device's plant is owned by user
+    verify_plant_ownership(db, device.plant_id, user_id)
+    
+    return device
+

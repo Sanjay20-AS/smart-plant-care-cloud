@@ -1,37 +1,60 @@
 """
-API routes for the Smart Plant Care system.
+API routes with authentication for the Smart Plant Care system.
+
+Protected endpoints require valid Supabase JWT tokens.
+Unprotected endpoints remain available for device ingestion and health checks.
 
 Organized by resource:
-- Plants
-- Devices
-- Sensor readings and ingestion
-- Watering
-- Alerts
-- Analytics
+- Plants (protected)
+- Devices (protected)
+- Sensor readings and ingestion (device auth)
+- Watering (protected)
+- Alerts (protected)
+- Analytics (protected)
 """
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
 from app import schemas, models
 from app.services import WateringService, AlertService
-from app.security import authenticate_device
+from app.security import authenticate_device, verify_plant_ownership, verify_device_ownership
+from app.auth import get_current_user_id
+from app.user_scope import (
+    get_user_plants,
+    get_user_plant_by_id,
+    get_user_devices,
+    get_user_device_by_id,
+    get_user_sensor_readings,
+    get_user_latest_reading,
+    get_user_watering_events,
+    get_user_alerts,
+    get_user_alert_by_id,
+)
+from config import settings
 
 # Create routers
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
 # ============================================================================
-# Plant Endpoints
+# Plant Endpoints (Protected)
 # ============================================================================
 
 
 @router.post("/plants", response_model=schemas.PlantResponse, status_code=201, tags=["plants"])
-def create_plant(plant: schemas.PlantCreate, db: Session = Depends(get_db)):
-    """Create a new plant."""
-    db_plant = models.Plant(**plant.dict())
+def create_plant(
+    plant: schemas.PlantCreate,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Create a new plant (requires authentication)."""
+    db_plant = models.Plant(
+        user_id=user_id,
+        **plant.dict()
+    )
     db.add(db_plant)
     db.commit()
     db.refresh(db_plant)
@@ -44,20 +67,23 @@ def list_plants(
     limit: int = Query(100, ge=1, le=1000),
     active_only: bool = Query(False),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Retrieve all plants with pagination."""
-    query = db.query(models.Plant)
+    """Retrieve all plants for the authenticated user."""
+    query = db.query(models.Plant).filter(models.Plant.user_id == user_id)
     if active_only:
         query = query.filter(models.Plant.is_active == True)
     return query.offset(skip).limit(limit).all()
 
 
 @router.get("/plants/{plant_id}", response_model=schemas.PlantResponse, tags=["plants"])
-def get_plant(plant_id: int, db: Session = Depends(get_db)):
-    """Retrieve a specific plant."""
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+def get_plant(
+    plant_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Retrieve a specific plant owned by the authenticated user."""
+    plant = verify_plant_ownership(db, plant_id, user_id)
     return plant
 
 
@@ -66,11 +92,10 @@ def update_plant(
     plant_id: int,
     plant_update: schemas.PlantUpdate,
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Update plant configuration."""
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+    """Update plant configuration (requires ownership)."""
+    plant = verify_plant_ownership(db, plant_id, user_id)
 
     update_data = plant_update.dict(exclude_unset=True)
     for key, value in update_data.items():
@@ -83,28 +108,31 @@ def update_plant(
 
 
 @router.delete("/plants/{plant_id}", status_code=204, tags=["plants"])
-def delete_plant(plant_id: int, db: Session = Depends(get_db)):
-    """Delete a plant and all associated data."""
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
-
-    db.delete(plant)  # Cascade delete handled by database
+def delete_plant(
+    plant_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Delete a plant and all associated data (requires ownership)."""
+    plant = verify_plant_ownership(db, plant_id, user_id)
+    db.delete(plant)
     db.commit()
 
 
 # ============================================================================
-# Device Endpoints
+# Device Endpoints (Protected)
 # ============================================================================
 
 
 @router.post("/devices", response_model=schemas.DeviceResponse, status_code=201, tags=["devices"])
-def register_device(device: schemas.DeviceCreate, db: Session = Depends(get_db)):
-    """Register a new device."""
-    # Verify plant exists
-    plant = db.query(models.Plant).filter(models.Plant.id == device.plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+def register_device(
+    device: schemas.DeviceCreate,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Register a new device for a user's plant."""
+    # Verify plant exists and is owned by user
+    plant = verify_plant_ownership(db, device.plant_id, user_id)
 
     # Check for duplicate device_id
     existing = db.query(models.Device).filter(models.Device.device_id == device.device_id).first()
@@ -125,22 +153,20 @@ def list_devices(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Retrieve devices with optional filtering."""
-    query = db.query(models.Device)
-    if plant_id:
-        query = query.filter(models.Device.plant_id == plant_id)
-    if status:
-        query = query.filter(models.Device.status == status)
-    return query.offset(skip).limit(limit).all()
+    """Retrieve devices for the authenticated user's plants."""
+    return get_user_devices(db, user_id, plant_id, skip, limit)
 
 
 @router.get("/devices/{device_id}", response_model=schemas.DeviceResponse, tags=["devices"])
-def get_device(device_id: int, db: Session = Depends(get_db)):
-    """Retrieve a specific device."""
-    device = db.query(models.Device).filter(models.Device.id == device_id).first()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+def get_device(
+    device_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Retrieve a specific device owned by the authenticated user."""
+    device = verify_device_ownership(db, device_id, user_id)
     return device
 
 
@@ -149,19 +175,16 @@ def update_device(
     device_id: int,
     device_update: schemas.DeviceUpdate,
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Update device configuration."""
-    device = db.query(models.Device).filter(models.Device.id == device_id).first()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    """Update device configuration (requires ownership)."""
+    device = verify_device_ownership(db, device_id, user_id)
 
     update_data = device_update.dict(exclude_unset=True)
 
     if "plant_id" in update_data:
-        # Verify new plant exists
-        plant = db.query(models.Plant).filter(models.Plant.id == update_data["plant_id"]).first()
-        if not plant:
-            raise HTTPException(status_code=404, detail="Plant not found")
+        # Verify new plant exists and is owned by user
+        verify_plant_ownership(db, update_data["plant_id"], user_id)
 
     for key, value in update_data.items():
         setattr(device, key, value)
@@ -173,18 +196,19 @@ def update_device(
 
 
 @router.delete("/devices/{device_id}", status_code=204, tags=["devices"])
-def delete_device(device_id: int, db: Session = Depends(get_db)):
-    """Delete a device."""
-    device = db.query(models.Device).filter(models.Device.id == device_id).first()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-
+def delete_device(
+    device_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Delete a device (requires ownership)."""
+    device = verify_device_ownership(db, device_id, user_id)
     db.delete(device)
     db.commit()
 
 
 # ============================================================================
-# Sensor Ingestion Endpoints
+# Sensor Ingestion Endpoints (Device Auth - No User Auth Required)
 # ============================================================================
 
 
@@ -197,6 +221,7 @@ def ingest_sensor_reading(
     Ingest a sensor reading from a device.
 
     This endpoint requires device authentication via device_id.
+    Does not require user authentication.
     """
     # Authenticate device
     device = authenticate_device(db, reading.device_id)
@@ -230,12 +255,11 @@ def get_plant_sensor_readings(
     limit: int = Query(100, ge=1, le=1000),
     hours: int = Query(24, ge=1, le=720),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Retrieve sensor readings for a plant."""
-    # Verify plant exists
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+    """Retrieve sensor readings for a user's plant."""
+    # Verify plant ownership
+    verify_plant_ownership(db, plant_id, user_id)
 
     cutoff_time = datetime.utcnow() - timedelta(hours=hours)
     return (
@@ -252,12 +276,14 @@ def get_plant_sensor_readings(
 
 
 @router.get("/sensor-readings/latest/{plant_id}", response_model=schemas.LatestSensorReadingsResponse, tags=["sensors"])
-def get_latest_sensor_readings(plant_id: int, db: Session = Depends(get_db)):
-    """Retrieve latest sensor readings for a plant."""
-    # Verify plant exists
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+def get_latest_sensor_readings(
+    plant_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Retrieve latest sensor readings for a user's plant."""
+    # Verify plant ownership
+    verify_plant_ownership(db, plant_id, user_id)
 
     latest = (
         db.query(models.SensorReading)
@@ -279,7 +305,7 @@ def get_latest_sensor_readings(plant_id: int, db: Session = Depends(get_db)):
 
 
 # ============================================================================
-# Watering Endpoints
+# Watering Endpoints (Protected)
 # ============================================================================
 
 
@@ -288,8 +314,12 @@ def evaluate_watering_decision(
     plant_id: int,
     device_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Evaluate if a plant is eligible for watering."""
+    """Evaluate if a user's plant is eligible for watering."""
+    # Verify plant ownership
+    verify_plant_ownership(db, plant_id, user_id)
+
     service = WateringService(db)
     decision, _ = service.evaluate_watering_eligibility(plant_id, device_id)
     return decision[0]
@@ -300,8 +330,12 @@ def execute_virtual_watering(
     plant_id: int,
     device_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Execute a virtual watering operation."""
+    """Execute a virtual watering operation for a user's plant."""
+    # Verify plant ownership
+    verify_plant_ownership(db, plant_id, user_id)
+
     service = WateringService(db)
     success, event_id, message = service.execute_virtual_watering(plant_id, device_id)
 
@@ -324,12 +358,11 @@ def get_watering_history(
     limit: int = Query(100, ge=1, le=1000),
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Retrieve watering history for a plant."""
-    # Verify plant exists
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+    """Retrieve watering history for a user's plant."""
+    # Verify plant ownership
+    verify_plant_ownership(db, plant_id, user_id)
 
     cutoff_time = datetime.utcnow() - timedelta(days=days)
     return (
@@ -346,12 +379,14 @@ def get_watering_history(
 
 
 @router.get("/watering/summary/{plant_id}", response_model=schemas.WateringHistoryResponse, tags=["watering"])
-def get_watering_summary(plant_id: int, db: Session = Depends(get_db)):
-    """Retrieve watering summary for a plant."""
-    # Verify plant exists
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+def get_watering_summary(
+    plant_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Retrieve watering summary for a user's plant."""
+    # Verify plant ownership
+    verify_plant_ownership(db, plant_id, user_id)
 
     # Total events
     total_events = db.query(func.count(models.WateringEvent.id)).filter(models.WateringEvent.plant_id == plant_id).scalar()
@@ -394,7 +429,7 @@ def get_watering_summary(plant_id: int, db: Session = Depends(get_db)):
 
 
 # ============================================================================
-# Alert Endpoints
+# Alert Endpoints (Protected)
 # ============================================================================
 
 
@@ -406,22 +441,20 @@ def list_alerts(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Retrieve alerts with optional filtering."""
-    query = db.query(models.Alert)
-    if plant_id:
-        query = query.filter(models.Alert.plant_id == plant_id)
-    if status:
-        query = query.filter(models.Alert.status == status)
-    if severity:
-        query = query.filter(models.Alert.severity == severity)
-    return query.order_by(models.Alert.created_at.desc()).offset(skip).limit(limit).all()
+    """Retrieve alerts for the authenticated user's plants."""
+    return get_user_alerts(db, user_id, plant_id, skip, limit)
 
 
 @router.get("/alerts/{alert_id}", response_model=schemas.AlertResponse, tags=["alerts"])
-def get_alert(alert_id: int, db: Session = Depends(get_db)):
-    """Retrieve a specific alert."""
-    alert = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
+def get_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Retrieve a specific alert owned by the authenticated user."""
+    alert = get_user_alert_by_id(db, alert_id, user_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
     return alert
@@ -432,9 +465,10 @@ def update_alert(
     alert_id: int,
     alert_update: schemas.AlertUpdate,
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Update alert status."""
-    alert = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
+    """Update alert status (requires ownership)."""
+    alert = get_user_alert_by_id(db, alert_id, user_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
@@ -449,17 +483,19 @@ def update_alert(
 
 
 # ============================================================================
-# Analytics Endpoints
+# Analytics Endpoints (Protected)
 # ============================================================================
 
 
 @router.get("/analytics/plant/{plant_id}", response_model=schemas.PlantAnalyticsResponse, tags=["analytics"])
-def get_plant_analytics(plant_id: int, db: Session = Depends(get_db)):
-    """Retrieve comprehensive analytics for a plant."""
-    # Verify plant exists
-    plant = db.query(models.Plant).filter(models.Plant.id == plant_id).first()
-    if not plant:
-        raise HTTPException(status_code=404, detail="Plant not found")
+def get_plant_analytics(
+    plant_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Retrieve comprehensive analytics for a user's plant."""
+    # Verify plant ownership
+    plant = verify_plant_ownership(db, plant_id, user_id)
 
     # Latest reading
     latest_reading = (
@@ -537,20 +573,39 @@ def get_plant_analytics(plant_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/analytics/summary", response_model=schemas.SystemSummaryResponse, tags=["analytics"])
-def get_system_summary(db: Session = Depends(get_db)):
-    """Retrieve system-wide analytics summary."""
-    total_plants = db.query(func.count(models.Plant.id)).scalar()
-    active_plants = db.query(func.count(models.Plant.id)).filter(models.Plant.is_active == True).scalar()
+def get_system_summary(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Retrieve analytics summary for the authenticated user's plants."""
+    # Count only user's plants
+    total_plants = db.query(func.count(models.Plant.id)).filter(models.Plant.user_id == user_id).scalar()
+    active_plants = db.query(func.count(models.Plant.id)).filter(
+        models.Plant.user_id == user_id,
+        models.Plant.is_active == True
+    ).scalar()
 
-    total_devices = db.query(func.count(models.Device.id)).scalar()
-    active_devices = db.query(func.count(models.Device.id)).filter(models.Device.status == "active").scalar()
+    # Count devices for user's plants
+    user_plant_ids = db.query(models.Plant.id).filter(models.Plant.user_id == user_id).subquery()
+    total_devices = db.query(func.count(models.Device.id)).filter(models.Device.plant_id.in_(user_plant_ids)).scalar()
+    active_devices = db.query(func.count(models.Device.id)).filter(
+        models.Device.plant_id.in_(user_plant_ids),
+        models.Device.status == "active"
+    ).scalar()
 
-    total_readings = db.query(func.count(models.SensorReading.id)).scalar()
-    total_watering_events = db.query(func.count(models.WateringEvent.id)).scalar()
+    # Count readings for user's plants
+    total_readings = db.query(func.count(models.SensorReading.id)).filter(models.SensorReading.plant_id.in_(user_plant_ids)).scalar()
+    total_watering_events = db.query(func.count(models.WateringEvent.id)).filter(models.WateringEvent.plant_id.in_(user_plant_ids)).scalar()
 
-    active_alerts = db.query(func.count(models.Alert.id)).filter(models.Alert.status == "active").scalar()
-
-    critical_alerts = db.query(func.count(models.Alert.id)).filter(models.Alert.severity == "critical").scalar()
+    # Count alerts for user's plants
+    active_alerts = db.query(func.count(models.Alert.id)).filter(
+        models.Alert.plant_id.in_(user_plant_ids),
+        models.Alert.status == "active"
+    ).scalar()
+    critical_alerts = db.query(func.count(models.Alert.id)).filter(
+        models.Alert.plant_id.in_(user_plant_ids),
+        models.Alert.severity == "critical"
+    ).scalar()
 
     return schemas.SystemSummaryResponse(
         total_plants=total_plants,

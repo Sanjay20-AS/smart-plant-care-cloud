@@ -1,12 +1,54 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from './services/supabaseClient'
+import authService from './services/auth'
 import DashboardPage from './pages/DashboardPage'
 import PlantsPage from './pages/PlantsPage'
 import PlantDetailsPage from './pages/PlantDetailsPage'
 import AlertsPage from './pages/AlertsPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import LoadingSpinner from './components/LoadingSpinner'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard')
+  const [currentPage, setCurrentPage] = useState('loading')
   const [selectedPlant, setSelectedPlant] = useState(null)
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  // Initialize authentication on mount
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const currentUser = await authService.getCurrentUser()
+        setUser(currentUser)
+        setCurrentPage(currentUser ? 'dashboard' : 'login')
+      } catch (err) {
+        console.error('Failed to initialize auth:', err)
+        setCurrentPage('login')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    initializeAuth()
+
+    // Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session && session.user) {
+          setUser(session.user)
+          setCurrentPage('dashboard')
+        } else {
+          setUser(null)
+          setCurrentPage('login')
+        }
+      }
+    )
+
+    return () => {
+      authListener?.subscription?.unsubscribe()
+    }
+  }, [])
 
   const handleSelectPlant = (plant) => {
     setSelectedPlant(plant)
@@ -21,6 +63,61 @@ function App() {
   const handleNavigate = (page) => {
     setCurrentPage(page)
     setSelectedPlant(null)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await authService.logout()
+      setUser(null)
+      setCurrentPage('login')
+    } catch (err) {
+      console.error('Logout failed:', err)
+    }
+  }
+
+  const handleLoginSuccess = () => {
+    setCurrentPage('dashboard')
+  }
+
+  const handleRegistrationSuccess = () => {
+    setCurrentPage('login')
+  }
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
+  // Authentication pages
+  if (currentPage === 'login') {
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        onNavigateToRegister={() => setCurrentPage('register')}
+      />
+    )
+  }
+
+  if (currentPage === 'register') {
+    return (
+      <RegisterPage
+        onRegistrationSuccess={handleRegistrationSuccess}
+        onNavigateToLogin={() => setCurrentPage('login')}
+      />
+    )
+  }
+
+  // Protected app pages (require authentication)
+  if (!user) {
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        onNavigateToRegister={() => setCurrentPage('register')}
+      />
+    )
   }
 
   return (
@@ -46,6 +143,12 @@ function App() {
               onClick={() => handleNavigate('alerts')}
             >
               Alerts
+            </button>
+            <button
+              className="nav-link logout-btn"
+              onClick={handleLogout}
+            >
+              Logout ({user?.email || 'User'})
             </button>
           </nav>
         </div>
@@ -78,7 +181,7 @@ function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Smart Plant Care System v1.0.0 | Phase 5 - Frontend Dashboard</p>
+        <p>Smart Plant Care System v1.0.0 | Phase 6 - Authentication & Cloud Integration</p>
       </footer>
     </div>
   )

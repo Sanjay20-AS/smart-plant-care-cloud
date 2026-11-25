@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_JWT_SECRET: str = ""  # For JWT verification
 
     # Database configuration
     # Defaults to SQLite for local development; set DATABASE_URL to use PostgreSQL
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = "INFO"
+
+    # Authentication configuration
+    REQUIRE_AUTH: bool = False  # Set to True to require authentication on protected endpoints
 
     class Config:
         env_file = ".env"

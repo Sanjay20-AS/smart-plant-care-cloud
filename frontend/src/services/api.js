@@ -2,6 +2,7 @@
  * API service for communicating with the backend
  */
 import axios from 'axios'
+import { supabase } from './supabaseClient'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
@@ -10,6 +11,34 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
 })
+
+// Add auth interceptor to include JWT token in requests
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (!error && data.session && data.session.access_token) {
+        config.headers.Authorization = `Bearer ${data.session.access_token}`
+      }
+    } catch (err) {
+      console.error('Failed to get auth token:', err)
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// Handle 401 responses by redirecting to login
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response && error.response.status === 401) {
+      // Token expired or invalid, redirect to login
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
 
 // Plants API
 export const plantsAPI = {

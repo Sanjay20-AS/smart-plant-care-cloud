@@ -15,7 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.main import app
 from app.models import Plant, Device, SensorReading, WateringEvent, Alert
 from app.database import get_db
-from tests.conftest import db_session
+from app.auth import get_current_user_id
+from tests.conftest import db_session, TEST_USER_ID
 
 
 def get_db_override(session: Session):
@@ -29,13 +30,31 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def override_get_db(db_session: Session):
-    """Override FastAPI dependency to use fixture session."""
-    def _override():
+def override_dependencies(db_session: Session):
+    """Override FastAPI dependencies to use test session and test user."""
+    def _override_get_db():
         yield db_session
-    app.dependency_overrides[get_db] = _override
+    
+    def _override_get_current_user_id(authorization=None):
+        # Return test user ID without requiring real authentication
+        return TEST_USER_ID
+    
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user_id] = _override_get_current_user_id
     yield
     app.dependency_overrides.clear()
+
+
+# Monkey-patch Plant creation to include user_id automatically in tests
+_original_plant_init = Plant.__init__
+
+def _patched_plant_init(self, **kwargs):
+    # Set user_id to test user if not explicitly provided and not None
+    if 'user_id' not in kwargs:
+        kwargs['user_id'] = TEST_USER_ID
+    _original_plant_init(self, **kwargs)
+
+Plant.__init__ = _patched_plant_init
 
 
 
