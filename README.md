@@ -167,6 +167,19 @@ Each component has an `.env.example` template that documents required configurat
 - ✅ SQLite (local) and PostgreSQL (Supabase) support
 - ✅ 21 passing automated database tests
 
+**Phase 4 - REST API & Application Logic Complete:**
+- ✅ 28 REST API endpoints
+- ✅ Plant management API (create, read, update, delete)
+- ✅ Device management API with device registration
+- ✅ Sensor data ingestion with device-level authentication
+- ✅ Watering decision engine with eligibility checks
+- ✅ Virtual watering execution
+- ✅ Alert generation and status management
+- ✅ Historical sensor data retrieval and analytics
+- ✅ System-wide summary and analytics endpoints
+- ✅ Comprehensive error handling and validation
+- ✅ 21+ automated tests
+
 ## Docker Support (Foundation)
 
 Minimal Docker configurations are in place for local development. Full production containerization will be implemented in Phase 5.
@@ -193,7 +206,8 @@ pytest -v
 ## Documentation
 
 - **Architecture**: See `docs/ARCHITECTURE.md`
-- **Database Schema**: See `docs/DATABASE.md` for complete schema documentation, relationships, and migration commands
+- **Database Schema**: See `docs/DATABASE.md`
+- **REST API**: See `docs/API.md` for complete API documentation, endpoints, and examples
 
 ## License
 
@@ -201,8 +215,8 @@ pytest -v
 
 ## Next Steps
 
-The system is ready for Phase 4 implementation:
-1. REST API endpoint implementation
-2. Sensor simulator logic
-3. Frontend dashboard and components
-4. Authentication integration
+The system is ready for Phase 5 implementation:
+1. User authentication via Supabase Auth
+2. Role-based access control
+3. Advanced testing and optimization
+4. Frontend integration

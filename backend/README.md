@@ -149,21 +149,27 @@ For complete schema documentation, see `docs/DATABASE.md`.
 
 ✅ **Phase 3**: Database implementation complete
 - SQLAlchemy ORM models (5 entities)
-- Alembic migrations with auto-generate
-- Foreign key relationships and cascading deletes
-- Automatic timestamp management
-- Comprehensive data validation and constraints
-- 21 passing automated tests
+- Alembic migrations
+- 21 passing model tests
 
-**Models:**
-- Plant: Individual plants with moisture thresholds
-- Device: IoT sensors/devices
-- SensorReading: Historical sensor data
-- WateringEvent: Watering records
-- Alert: System alerts
+✅ **Phase 4**: REST API & Application Logic complete
+- 28 API endpoints fully implemented
+- Plant management (CRUD)
+- Device management and registration
+- Sensor data ingestion with device auth
+- Watering decision engine with eligibility checks
+- Virtual watering execution
+- Alert service and endpoints
+- Historical data and analytics APIs
+- Comprehensive validation and error handling
+- 21+ automated tests
 
-⏳ **Phase 4**: REST API business endpoints
-⏳ **Phase 5**: Authentication workflows
+**API Endpoints**: 28 total across all resources
+**Services**: WateringService, AlertService
+**Security**: Device-level authentication for sensors
+**Documentation**: Complete API docs at `/docs`
+
+⏳ **Phase 5**: User authentication, optimization
 
 ## Development
 

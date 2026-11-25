@@ -10,11 +10,13 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import settings
+from app.routes import router
 
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
     debug=settings.DEBUG,
+    description="Cloud-Connected Smart Plant Care & Watering System API",
 )
 
 # Add CORS middleware
@@ -25,6 +27,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routes
+app.include_router(router)
 
 
 @app.get("/health")
