@@ -14,9 +14,29 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.main import app
 from app.models import Plant, Device, SensorReading, WateringEvent, Alert
+from app.database import get_db
 from tests.conftest import db_session
 
+
+def get_db_override(session: Session):
+    """Override get_db to use the test session."""
+    def _get_db():
+        yield session
+    return _get_db
+
+
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def override_get_db(db_session: Session):
+    """Override FastAPI dependency to use fixture session."""
+    def _override():
+        yield db_session
+    app.dependency_overrides[get_db] = _override
+    yield
+    app.dependency_overrides.clear()
+
 
 
 # ============================================================================
@@ -164,8 +184,10 @@ class TestDeviceEndpoints:
     def test_get_device(self, db_session: Session):
         """Test retrieving a specific device."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
-        db_session.add_all([plant, device])
+        db_session.add(device)
         db_session.commit()
 
         response = client.get(f"/api/v1/devices/{device.id}")
@@ -176,8 +198,10 @@ class TestDeviceEndpoints:
     def test_update_device_status(self, db_session: Session):
         """Test updating device status."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
-        db_session.add_all([plant, device])
+        db_session.add(device)
         db_session.commit()
 
         response = client.put(
@@ -191,8 +215,10 @@ class TestDeviceEndpoints:
     def test_delete_device(self, db_session: Session):
         """Test deleting a device."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
-        db_session.add_all([plant, device])
+        db_session.add(device)
         db_session.commit()
         device_id = device.id
 
@@ -211,8 +237,10 @@ class TestSensorIngestion:
     def test_ingest_sensor_reading(self, db_session: Session):
         """Test ingesting a sensor reading."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
-        db_session.add_all([plant, device])
+        db_session.add(device)
         db_session.commit()
 
         response = client.post(
@@ -254,14 +282,18 @@ class TestSensorIngestion:
     def test_get_plant_sensor_readings(self, db_session: Session):
         """Test retrieving plant sensor readings."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
+        db_session.add(device)
+        db_session.flush()
         reading = SensorReading(
             device_id=device.id,
             plant_id=plant.id,
             soil_moisture=65.5,
             temperature=22.3,
         )
-        db_session.add_all([plant, device, reading])
+        db_session.add(reading)
         db_session.commit()
 
         response = client.get(f"/api/v1/sensor-readings/plant/{plant.id}")
@@ -273,14 +305,18 @@ class TestSensorIngestion:
     def test_get_latest_sensor_readings(self, db_session: Session):
         """Test retrieving latest sensor readings."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
+        db_session.add(device)
+        db_session.flush()
         reading = SensorReading(
             device_id=device.id,
             plant_id=plant.id,
             soil_moisture=65.5,
             temperature=22.3,
         )
-        db_session.add_all([plant, device, reading])
+        db_session.add(reading)
         db_session.commit()
 
         response = client.get(f"/api/v1/sensor-readings/latest/{plant.id}")
@@ -300,14 +336,18 @@ class TestWateringEndpoints:
     def test_evaluate_watering_decision_eligible(self, db_session: Session):
         """Test watering decision when plant is eligible."""
         plant = Plant(name="Test Plant", is_active=True, moisture_threshold_min=30.0)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
+        db_session.add(device)
+        db_session.flush()
         reading = SensorReading(
             device_id=device.id,
             plant_id=plant.id,
             soil_moisture=20.0,  # Below threshold
             temperature=22.3,
         )
-        db_session.add_all([plant, device, reading])
+        db_session.add(reading)
         db_session.commit()
 
         response = client.post(f"/api/v1/watering/decision/{plant.id}")
@@ -330,13 +370,17 @@ class TestWateringEndpoints:
     def test_execute_virtual_watering(self, db_session: Session):
         """Test executing virtual watering."""
         plant = Plant(name="Test Plant", is_active=True, moisture_threshold_min=30.0)
+        db_session.add(plant)
+        db_session.flush()
         device = Device(device_id="sensor_001", plant_id=plant.id, status="active")
+        db_session.add(device)
+        db_session.flush()
         reading = SensorReading(
             device_id=device.id,
             plant_id=plant.id,
             soil_moisture=20.0,
         )
-        db_session.add_all([plant, device, reading])
+        db_session.add(reading)
         db_session.commit()
 
         response = client.post(f"/api/v1/watering/execute/{plant.id}")
@@ -348,12 +392,14 @@ class TestWateringEndpoints:
     def test_get_watering_history(self, db_session: Session):
         """Test retrieving watering history."""
         plant = Plant(name="Test Plant", is_active=True)
+        db_session.add(plant)
+        db_session.flush()
         event = WateringEvent(
             plant_id=plant.id,
             trigger_reason="manual",
             status="completed",
         )
-        db_session.add_all([plant, event])
+        db_session.add(event)
         db_session.commit()
 
         response = client.get(f"/api/v1/watering/history/{plant.id}")

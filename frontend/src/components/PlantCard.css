@@ -1,0 +1,137 @@
+.plant-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.plant-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.plant-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.plant-card-header h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+  color: #2d3436;
+}
+
+.plant-species {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #636e72;
+  font-style: italic;
+}
+
+.plant-menu {
+  position: relative;
+}
+
+.btn-menu {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  color: #636e72;
+}
+
+.btn-menu:hover {
+  color: #2d3436;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #dfe6e9;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  min-width: 150px;
+}
+
+.menu-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #2d3436;
+  transition: background-color 0.2s;
+}
+
+.menu-dropdown button:hover {
+  background-color: #f5f6f7;
+}
+
+.menu-delete {
+  color: #d63031 !important;
+}
+
+.menu-delete:hover {
+  background-color: #fff5f5 !important;
+}
+
+.plant-card-body {
+  margin-bottom: 1rem;
+}
+
+.plant-card-body label {
+  display: block;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2d3436;
+}
+
+.plant-card-body label:first-child {
+  margin-top: 0;
+}
+
+.sensor-reading {
+  margin-top: 0.75rem;
+}
+
+.sensor-reading span {
+  display: block;
+  font-size: 1.25rem;
+  color: #0984e3;
+  font-weight: 600;
+}
+
+.threshold-info {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background-color: #f5f6f7;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.threshold-info p {
+  margin: 0.25rem 0 0 0;
+  color: #636e72;
+}
+
+.no-data {
+  color: #95a5a6;
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
+}
+
+.btn-full {
+  width: 100%;
+  margin-top: 0.5rem;
+}
