@@ -34,7 +34,7 @@ class Plant(Base):
     __tablename__ = "plants"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(255), nullable=True, index=True, comment="Supabase user ID (owner)")
+    user_id = Column(String(2048), nullable=True, index=True, comment="Supabase user ID (owner)")
     name = Column(String(255), nullable=False)
     species = Column(String(255), nullable=True, comment="Plant species or type")
     moisture_threshold_min = Column(
