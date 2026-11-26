@@ -176,6 +176,34 @@ class WateringService:
                 None,
             ), None
 
+        # Check daily watering limit BEFORE cooldown
+        # (daily limit is a hard business rule, cooldown is a safeguard)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        daily_waterings = (
+            self.db.query(func.count(WateringEvent.id))
+            .filter(
+                WateringEvent.plant_id == plant_id,
+                WateringEvent.event_timestamp >= today_start,
+                WateringEvent.status == "completed",
+            )
+            .scalar()
+        )
+
+        if daily_waterings >= MAX_WATERING_EVENTS_PER_DAY:
+            return (
+                WateringDecisionResponse(
+                    eligible=False,
+                    reason=f"Daily watering limit reached ({daily_waterings}/{MAX_WATERING_EVENTS_PER_DAY})",
+                    plant_id=plant_id,
+                    device_id=device_id,
+                    current_moisture=current_moisture,
+                    moisture_threshold=plant.moisture_threshold_min,
+                    decision_timestamp=now,
+                    daily_limit_remaining=0,
+                ),
+                None,
+            ), None
+
         # Check cooldown period
         last_watering = (
             self.db.query(WateringEvent)
@@ -204,33 +232,6 @@ class WateringService:
                     ),
                     None,
                 ), None
-
-        # Check daily watering limit
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        daily_waterings = (
-            self.db.query(func.count(WateringEvent.id))
-            .filter(
-                WateringEvent.plant_id == plant_id,
-                WateringEvent.event_timestamp >= today_start,
-                WateringEvent.status == "completed",
-            )
-            .scalar()
-        )
-
-        if daily_waterings >= MAX_WATERING_EVENTS_PER_DAY:
-            return (
-                WateringDecisionResponse(
-                    eligible=False,
-                    reason=f"Daily watering limit reached ({daily_waterings}/{MAX_WATERING_EVENTS_PER_DAY})",
-                    plant_id=plant_id,
-                    device_id=device_id,
-                    current_moisture=current_moisture,
-                    moisture_threshold=plant.moisture_threshold_min,
-                    decision_timestamp=now,
-                    daily_limit_remaining=0,
-                ),
-                None,
-            ), None
 
         # All checks passed
         return (
