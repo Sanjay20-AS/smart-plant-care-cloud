@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   plantsAPI,
+  devicesAPI,
   sensorAPI,
   wateringAPI,
   analyticsAPI,
@@ -15,10 +16,16 @@ export default function PlantDetailsPage({ plantId, onBack }) {
   const [plant, setPlant] = useState(null)
   const [analytics, setAnalytics] = useState(null)
   const [readings, setReadings] = useState([])
+  const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [wateringDecision, setWateringDecision] = useState(null)
   const [wateringLoading, setWateringLoading] = useState(false)
+  const [showDeviceForm, setShowDeviceForm] = useState(false)
+  const [deviceFormData, setDeviceFormData] = useState({
+    device_id: '',
+    status: 'active',
+  })
 
   useEffect(() => {
     if (!plantId) {
@@ -26,17 +33,18 @@ export default function PlantDetailsPage({ plantId, onBack }) {
       return
     }
     fetchPlantDetails()
-  }, [plantId, onBack])
+  }, [plantId])
 
   const fetchPlantDetails = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      const [plantRes, analyticsRes, sensorRes] = await Promise.allSettled([
+      const [plantRes, analyticsRes, sensorRes, devicesRes] = await Promise.allSettled([
         plantsAPI.get(plantId),
         analyticsAPI.getPlantAnalytics(plantId),
         sensorAPI.getByPlant(plantId),
+        devicesAPI.getAll(0, 100),
       ])
 
       if (plantRes.status === 'fulfilled') {
@@ -50,6 +58,11 @@ export default function PlantDetailsPage({ plantId, onBack }) {
           (a, b) => new Date(b.reading_timestamp) - new Date(a.reading_timestamp)
         )
         setReadings(sorted)
+      }
+      if (devicesRes.status === 'fulfilled') {
+        // Filter devices for this plant
+        const plantDevices = devicesRes.value.data.filter(d => d.plant_id === plantId)
+        setDevices(plantDevices)
       }
 
       // Fetch watering decision
@@ -76,6 +89,32 @@ export default function PlantDetailsPage({ plantId, onBack }) {
       setError(err.response?.data?.detail || err.message)
     } finally {
       setWateringLoading(false)
+    }
+  }
+
+  const handleAddDevice = async (e) => {
+    e.preventDefault()
+    try {
+      await devicesAPI.register({
+        ...deviceFormData,
+        plant_id: plantId,
+      })
+      setDeviceFormData({ device_id: '', status: 'active' })
+      setShowDeviceForm(false)
+      await fetchPlantDetails()
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message)
+    }
+  }
+
+  const handleDeleteDevice = async (deviceId) => {
+    if (window.confirm('Are you sure you want to delete this device?')) {
+      try {
+        await devicesAPI.delete(deviceId)
+        await fetchPlantDetails()
+      } catch (err) {
+        setError(err.response?.data?.detail || err.message)
+      }
     }
   }
 
@@ -205,6 +244,59 @@ export default function PlantDetailsPage({ plantId, onBack }) {
             </>
           ) : (
             <p className="no-data">Unable to determine watering status</p>
+          )}
+        </section>
+
+        {/* Devices */}
+        <section className="detail-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2>Devices ({devices.length})</h2>
+            <button
+              className="btn-secondary"
+              onClick={() => setShowDeviceForm(!showDeviceForm)}
+            >
+              {showDeviceForm ? 'Cancel' : '+ Register Device'}
+            </button>
+          </div>
+
+          {showDeviceForm && (
+            <form className="device-form" onSubmit={handleAddDevice} style={{ marginBottom: '1rem' }}>
+              <div className="form-group">
+                <label>Device ID *</label>
+                <input
+                  type="text"
+                  required
+                  value={deviceFormData.device_id}
+                  onChange={(e) => setDeviceFormData({ ...deviceFormData, device_id: e.target.value })}
+                  placeholder="e.g., sensor_001"
+                />
+              </div>
+              <button type="submit" className="btn-primary btn-full">
+                Register Device
+              </button>
+            </form>
+          )}
+
+          {devices.length > 0 ? (
+            <div className="devices-list">
+              {devices.map((device) => (
+                <div key={device.id} className="device-item" style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p className="device-id" style={{ fontWeight: 'bold', margin: '0 0 0.25rem 0' }}>{device.device_id}</p>
+                    <p className="device-status" style={{ margin: 0, fontSize: '0.875rem', color: '#666' }}>Status: {device.status}</p>
+                  </div>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => handleDeleteDevice(device.id)}
+                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="no-data">No devices registered</p>
           )}
         </section>
 
