@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Authentication configuration
     REQUIRE_AUTH: bool = False  # Set to True to require authentication on protected endpoints
 
+    # CORS configuration
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"  # Comma-separated origins
+
     class Config:
         env_file = ".env"
         case_sensitive = True

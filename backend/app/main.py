@@ -19,10 +19,13 @@ app = FastAPI(
     description="Cloud-Connected Smart Plant Care & Watering System API",
 )
 
+# Parse CORS origins from environment variable
+cors_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
