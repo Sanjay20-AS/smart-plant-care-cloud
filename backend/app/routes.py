@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
-from app import schemas, models
+from app import schemas, models, services
 from app.services import WateringService, AlertService
 from app.security import authenticate_device, verify_plant_ownership, verify_device_ownership
 from app.auth import get_current_user_id
@@ -222,6 +222,8 @@ def ingest_sensor_reading(
 
     This endpoint requires device authentication via device_id.
     Does not require user authentication.
+    
+    Also generates alerts if moisture levels are outside thresholds.
     """
     # Authenticate device
     device = authenticate_device(db, reading.device_id)
@@ -245,6 +247,45 @@ def ingest_sensor_reading(
     db.add(db_reading)
     db.commit()
     db.refresh(db_reading)
+    
+    # Check for moisture alerts
+    plant = device.plant
+    alert_service = AlertService(db)
+    
+    # Check for low moisture (below minimum threshold)
+    if reading.soil_moisture < plant.moisture_threshold_min:
+        # Check if alert already exists
+        existing_alert = alert_service.get_duplicate_alert(
+            alert_type="dry",
+            plant_id=plant.id,
+            device_id=device.id
+        )
+        if not existing_alert:
+            alert_service.create_alert(
+                alert_type="dry",
+                severity="warning",
+                message=f"Soil moisture is {reading.soil_moisture:.1f}% (below minimum {plant.moisture_threshold_min}%)",
+                plant_id=plant.id,
+                device_id=device.id
+            )
+    
+    # Check for high moisture (above maximum threshold)
+    if reading.soil_moisture > plant.moisture_threshold_max:
+        # Check if alert already exists
+        existing_alert = alert_service.get_duplicate_alert(
+            alert_type="wet",
+            plant_id=plant.id,
+            device_id=device.id
+        )
+        if not existing_alert:
+            alert_service.create_alert(
+                alert_type="wet",
+                severity="warning",
+                message=f"Soil moisture is {reading.soil_moisture:.1f}% (above maximum {plant.moisture_threshold_max}%)",
+                plant_id=plant.id,
+                device_id=device.id
+            )
+    
     return db_reading
 
 

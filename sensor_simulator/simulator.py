@@ -36,29 +36,38 @@ class SensorSimulator:
         self.backend_url = config.BACKEND_URL
         self.plant_id = config.PLANT_ID
         self.sensor_interval = config.SENSOR_INTERVAL
-        self.device_id = f"sensor_{self.plant_id}"
+        # Use DEVICE_ID from config if set, otherwise generate from PLANT_ID
+        self.device_id = config.DEVICE_ID or f"sensor_{self.plant_id}"
         self.running = False
         
-        # Sensor data ranges for realistic simulation
-        self.moisture_base = 50  # Base moisture level
-        self.temperature_base = 22  # Base temperature in Celsius
-        self.humidity_base = 60  # Base humidity percentage
+        # Sensor data ranges from config
+        self.moisture_min = config.MOISTURE_MIN
+        self.moisture_max = config.MOISTURE_MAX
+        self.temperature_min = config.TEMPERATURE_MIN
+        self.temperature_max = config.TEMPERATURE_MAX
+        self.humidity_min = 20  # Minimum safe humidity
+        self.humidity_max = 100  # Maximum safe humidity
         
-        # Variation ranges
-        self.moisture_variation = 15  # ±15% around base
-        self.temperature_variation = 3  # ±3°C around base
-        self.humidity_variation = 15  # ±15% around base
+        # Calculate base values as midpoints
+        self.moisture_base = (self.moisture_min + self.moisture_max) / 2
+        self.temperature_base = (self.temperature_min + self.temperature_max) / 2
+        self.humidity_base = (self.humidity_min + self.humidity_max) / 2
+        
+        # Variation ranges (10% of the range)
+        self.moisture_variation = (self.moisture_max - self.moisture_min) / 10
+        self.temperature_variation = (self.temperature_max - self.temperature_min) / 10
+        self.humidity_variation = (self.humidity_max - self.humidity_min) / 10
 
     def generate_readings(self):
         """Generate simulated sensor readings with realistic variation."""
         # Add random walk to simulate gradual changes
-        moisture = max(0, min(100, 
+        moisture = max(self.moisture_min, min(self.moisture_max, 
             self.moisture_base + random.gauss(0, self.moisture_variation/2)
         ))
         
         temperature = self.temperature_base + random.gauss(0, self.temperature_variation/2)
         
-        humidity = max(20, min(100, 
+        humidity = max(self.humidity_min, min(self.humidity_max, 
             self.humidity_base + random.gauss(0, self.humidity_variation/2)
         ))
         

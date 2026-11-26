@@ -5,6 +5,7 @@ import {
   sensorAPI,
   wateringAPI,
   analyticsAPI,
+  alertsAPI,
 } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorAlert from '../components/ErrorAlert'
@@ -17,6 +18,7 @@ export default function PlantDetailsPage({ plantId, onBack }) {
   const [analytics, setAnalytics] = useState(null)
   const [readings, setReadings] = useState([])
   const [devices, setDevices] = useState([])
+  const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [wateringDecision, setWateringDecision] = useState(null)
@@ -40,11 +42,12 @@ export default function PlantDetailsPage({ plantId, onBack }) {
       setLoading(true)
       setError(null)
 
-      const [plantRes, analyticsRes, sensorRes, devicesRes] = await Promise.allSettled([
+      const [plantRes, analyticsRes, sensorRes, devicesRes, alertsRes] = await Promise.allSettled([
         plantsAPI.get(plantId),
         analyticsAPI.getPlantAnalytics(plantId),
         sensorAPI.getByPlant(plantId),
         devicesAPI.getAll(0, 100),
+        alertsAPI.getAll(plantId),
       ])
 
       if (plantRes.status === 'fulfilled') {
@@ -63,6 +66,12 @@ export default function PlantDetailsPage({ plantId, onBack }) {
         // Filter devices for this plant
         const plantDevices = devicesRes.value.data.filter(d => d.plant_id === plantId)
         setDevices(plantDevices)
+      }
+
+      if (alertsRes.status === 'fulfilled') {
+        // Filter active/acknowledged alerts
+        const activeAlerts = alertsRes.value.data.filter(a => a.status !== 'resolved')
+        setAlerts(activeAlerts)
       }
 
       // Fetch watering decision
@@ -155,6 +164,28 @@ export default function PlantDetailsPage({ plantId, onBack }) {
           {plant.species && <p className="species">{plant.species}</p>}
         </div>
       </div>
+
+      {/* Active Alerts */}
+      {alerts.length > 0 && (
+        <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#fff3cd', borderRadius: '4px', borderLeft: '4px solid #ffc107' }}>
+          <h3 style={{ margin: '0 0 0.75rem 0', color: '#856404' }}>⚠️ Active Alerts ({alerts.length})</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {alerts.map((alert, idx) => (
+              <div key={idx} style={{ padding: '0.75rem', backgroundColor: 'white', borderRadius: '4px', borderLeft: `3px solid ${alert.severity === 'critical' ? '#dc3545' : '#ffc107'}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ margin: '0 0 0.25rem 0', fontWeight: 'bold', fontSize: '0.9rem' }}>{alert.alert_type.toUpperCase()} - {alert.severity}</p>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#666' }}>{alert.message}</p>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#999' }}>
+                    {new Date(alert.created_at).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="details-grid">
         {/* Sensor Status */}

@@ -76,7 +76,11 @@ export const wateringAPI = {
 
 // Alerts API
 export const alertsAPI = {
-  getAll: () => api.get('/alerts'),
+  getAll: (plantId = null) => {
+    const params = {}
+    if (plantId) params.plant_id = plantId
+    return api.get('/alerts', { params })
+  },
   get: (alertId) => api.get(`/alerts/${alertId}`),
   update: (alertId, data) => api.put(`/alerts/${alertId}`, data),
 }
