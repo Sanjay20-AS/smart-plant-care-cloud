@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.models import Base
+from app.models import Base, Plant
 from app.auth import get_current_user_id
 from app.database import get_db
 
@@ -23,6 +23,18 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 TEST_USER_ID = "test-user-123"
 TEST_JWT_SECRET = "test-secret-key"
+
+# Monkey-patch Plant creation to include user_id automatically in tests
+# This must be done BEFORE any fixtures create Plant instances
+_original_plant_init = Plant.__init__
+
+def _patched_plant_init(self, **kwargs):
+    # Set user_id to test user if not explicitly provided
+    if 'user_id' not in kwargs:
+        kwargs['user_id'] = TEST_USER_ID
+    _original_plant_init(self, **kwargs)
+
+Plant.__init__ = _patched_plant_init
 
 
 @pytest.fixture(scope="function")

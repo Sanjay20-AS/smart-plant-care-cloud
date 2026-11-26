@@ -33,11 +33,17 @@ function App() {
     initializeAuth()
 
     // Listen for auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (session && session.user) {
           setUser(session.user)
-          setCurrentPage('dashboard')
+          // Don't redirect to dashboard if already on a protected page
+          setCurrentPage((prevPage) => {
+            if (['login', 'register'].includes(prevPage)) {
+              return 'dashboard'
+            }
+            return prevPage
+          })
         } else {
           setUser(null)
           setCurrentPage('login')
@@ -46,7 +52,7 @@ function App() {
     )
 
     return () => {
-      authListener?.subscription?.unsubscribe()
+      subscription?.unsubscribe()
     }
   }, [])
 

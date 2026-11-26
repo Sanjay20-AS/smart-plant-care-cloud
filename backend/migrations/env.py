@@ -23,7 +23,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Set sqlalchemy.url from environment configuration
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Escape percent characters for ConfigParser interpolation
+database_url = settings.DATABASE_URL.replace("%", "%%")
+config.set_main_option("sqlalchemy.url", database_url)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

@@ -163,8 +163,8 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
             raise HTTPException(status_code=401, detail="Invalid token: missing user ID")
         return user_id
     else:
-        # For development/testing without real Supabase, extract from test token
-        # Test tokens can be: "Bearer test-user-id" or contain 'sub' in claims
+        # For development/testing without real Supabase, extract 'sub' from token claims
+        # This ensures the same user ID is used even if the token changes
         try:
             payload = jwt.decode(token, options={"verify_signature": False})
             user_id = payload.get("sub")
@@ -173,8 +173,9 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
         except:
             pass
         
-        # Fallback to token itself as user_id for testing
-        return token
+        # Fallback: for test tokens without 'sub', use a fixed development user ID
+        # This prevents 403 errors when tokens change during development
+        return "test-user-dev"
 
 
 def extract_user_id_from_token(token: str) -> Optional[str]:
